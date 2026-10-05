@@ -794,6 +794,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             "cursor": CursorActivityMonitor(),
             "grok": GrokActivityMonitor(),
             "gemini-api": GeminiAPIActivityMonitor(),
+            "opencode": OpenCodeActivityMonitor(),
             "kimi": KimiActivityMonitor(),
         ]
         for profile in antigravityProfiles {
