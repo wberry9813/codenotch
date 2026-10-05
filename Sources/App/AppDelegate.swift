@@ -10,6 +10,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var phoneLinkPairing: PhoneLinkPairing?
     var phoneLinkRegistry: PhoneLinkRegistry?
     private var activityCoordinator: ActivityCoordinator?
+    private var openCodeInteractionStore: OpenCodeInteractionStore?
+    private var openCodeInteractionServer: OpenCodeInteractionServer?
     private var piResponseMonitor: PiResponseMonitor?
     private var ollamaRelay: OllamaActivityRelay?
     private var lmstudioMetrics: LMStudioMetrics?
@@ -108,6 +110,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Preferences.migrateFromPreviousName()
         let preferences = Preferences()
         self.preferences = preferences
+
+        // OpenCode activity is read from its local database; actionable
+        // permission/question requests arrive over a separate local socket.
+        // Starting the socket does not require an OpenCode Go sign-in and is
+        // harmless until the Codenotch OpenCode plugin is installed.
+        let openCodeInteractionStore = OpenCodeInteractionStore()
+        let openCodeInteractionServer = OpenCodeInteractionServer(store: openCodeInteractionStore)
+        openCodeInteractionServer.start()
+        self.openCodeInteractionStore = openCodeInteractionStore
+        self.openCodeInteractionServer = openCodeInteractionServer
 
         // One notch per display: the fleet owns a controller for each screen
         // the scope asks for and fans every reading out to all of them. The
@@ -1240,6 +1252,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        openCodeInteractionServer?.stop()
         ollamaRelay?.configure(enabled: false, endpoint: OllamaEndpoint.defaultAddress)
         lmstudioMetrics?.stop()
         tokenRefresher?.stop()
