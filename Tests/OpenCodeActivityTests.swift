@@ -37,18 +37,28 @@ final class OpenCodeActivityTests: XCTestCase {
         completed: Date? = nil,
         v2: Bool = false
     ) -> String {
-        let completedField = completed
-            .map { #","completed":#(Int($0.timeIntervalSince1970 * 1000))"# } ?? ""
-        let providerField: String
-        if let provider {
-            providerField = v2
-                ? #","model":{"providerID":"#(provider)","modelID":"test"}"#
-                : #","providerID":"#(provider)","modelID":"test""#
-        } else {
-            providerField = ""
+        var time: [String: Any] = [
+            "created": Int(created.timeIntervalSince1970 * 1000)
+        ]
+        if let completed {
+            time["completed"] = Int(completed.timeIntervalSince1970 * 1000)
         }
-        return #"{"role":"#(role)"#(providerField),"#
-            + #""time":{"created":#(Int(created.timeIntervalSince1970 * 1000))#(completedField)}}"#
+
+        var object: [String: Any] = [
+            "role": role,
+            "time": time
+        ]
+        if let provider {
+            if v2 {
+                object["model"] = ["providerID": provider, "modelID": "test"]
+            } else {
+                object["providerID"] = provider
+                object["modelID"] = "test"
+            }
+        }
+
+        let data = try! JSONSerialization.data(withJSONObject: object)
+        return String(decoding: data, as: UTF8.self)
     }
 
     private func makeV1Database(
