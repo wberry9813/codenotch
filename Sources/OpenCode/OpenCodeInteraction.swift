@@ -84,9 +84,14 @@ final class OpenCodeInteractionStore: ObservableObject {
     }
 
     func cancelAll() {
-        let ids = interactions.map(\.id)
-        for id in ids {
-            resolve(id, with: .permissionReject)
+        let pending = interactions
+        for interaction in pending {
+            switch interaction.kind {
+            case .permission:
+                resolve(interaction.id, with: .permissionReject)
+            case .question:
+                resolve(interaction.id, with: .questionReject)
+            }
         }
     }
 
