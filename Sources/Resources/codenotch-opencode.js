@@ -226,27 +226,71 @@ function setupV2(ctx) {
   return () => controller.abort();
 }
 
-async function v1Request(heyApi, serverPort, method, path, body) {
+async function v1ReplyPermission(heyApi, serverBase, requestID, reply) {
   try {
     if (typeof heyApi?.request === "function") {
-      await heyApi.request({ method, url: path, body });
-      return true;
+      await heyApi.request({
+        method: "POST",
+        url: "/permission/{requestID}/reply",
+        path: { requestID },
+        body: { reply },
+      });
+      return;
     }
   } catch {}
 
   try {
-    const response = await fetch(`http://localhost:${serverPort}${path}`, {
-      method,
+    await fetch(`${serverBase}/permission/${encodeURIComponent(requestID)}/reply`, {
+      method: "POST",
       headers: { "Content-Type": "application/json" },
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      body: JSON.stringify({ reply }),
     });
-    return response.ok;
-  } catch {
-    return false;
-  }
+  } catch {}
 }
 
-async function handleV1Event(event, heyApi, serverPort) {
+async function v1ReplyQuestion(heyApi, serverBase, requestID, answers) {
+  try {
+    if (typeof heyApi?.request === "function") {
+      await heyApi.request({
+        method: "POST",
+        url: "/question/{requestID}/reply",
+        path: { requestID },
+        body: { answers },
+      });
+      return;
+    }
+  } catch {}
+
+  try {
+    await fetch(`${serverBase}/question/${encodeURIComponent(requestID)}/reply`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ answers }),
+    });
+  } catch {}
+}
+
+async function v1RejectQuestion(heyApi, serverBase, requestID) {
+  try {
+    if (typeof heyApi?.request === "function") {
+      await heyApi.request({
+        method: "POST",
+        url: "/question/{requestID}/reject",
+        path: { requestID },
+      });
+      return;
+    }
+  } catch {}
+
+  try {
+    await fetch(`${serverBase}/question/${encodeURIComponent(requestID)}/reject`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+    });
+  } catch {}
+}
+
+async function handleV1Event(event, heyApi, serverBase) {
   const type = event?.type;
   const properties = event?.properties || {};
   const sessionID = properties.sessionID;
@@ -268,13 +312,7 @@ async function handleV1Event(event, heyApi, serverPort) {
     const reply = ["once", "always", "reject"].includes(response.decision)
       ? response.decision
       : "reject";
-    await v1Request(
-      heyApi,
-      serverPort,
-      "POST",
-      `/permission/${encodeURIComponent(requestID)}/reply`,
-      { reply }
-    );
+    await v1ReplyPermission(heyApi, serverBase, requestID, reply);
     return;
   }
 
@@ -293,23 +331,12 @@ async function handleV1Event(event, heyApi, serverPort) {
     if (!response?.decision) return;
 
     if (response.decision === "reject") {
-      await v1Request(
-        heyApi,
-        serverPort,
-        "POST",
-        `/question/${encodeURIComponent(requestID)}/reject`
-      );
+      await v1RejectQuestion(heyApi, serverBase, requestID);
       return;
     }
 
     if (response.decision === "answer" && Array.isArray(response.answers)) {
-      await v1Request(
-        heyApi,
-        serverPort,
-        "POST",
-        `/question/${encodeURIComponent(requestID)}/reply`,
-        { answers: response.answers }
-      );
+      await v1ReplyQuestion(heyApi, serverBase, requestID, response.answers);
     }
   }
 }
@@ -319,11 +346,12 @@ export default {
   setup: setupV2,
   server: async ({ client, serverUrl }) => {
     const serverPort = serverUrl ? parseInt(serverUrl.port) || 4096 : 4096;
+    const serverBase = serverUrl?.origin || `http://localhost:${serverPort}`;
     const heyApi = client?._client;
 
     return {
       event: async ({ event }) => {
-        handleV1Event(event, heyApi, serverPort).catch(() => {});
+        handleV1Event(event, heyApi, serverBase).catch(() => {});
       },
     };
   },
