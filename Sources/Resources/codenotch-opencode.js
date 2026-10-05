@@ -1,4 +1,8 @@
 // Codenotch OpenCode interaction plugin.
+// OpenCode v1/v2 compatibility behavior is informed by CodeIsland
+// (https://github.com/wxtsky/CodeIsland), MIT, Copyright (c) 2026 wxtsky.
+// This implementation is intentionally narrowed to Codenotch's local
+// permission/question transport.
 //
 // This plugin only carries actionable permission/question requests. Session
 // activity itself is read from opencode.db by Codenotch, which keeps this
