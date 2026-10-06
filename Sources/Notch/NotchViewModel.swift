@@ -70,6 +70,11 @@ final class NotchViewModel: ObservableObject {
     /// being one.
     @Published var sessions: [String: [AgentSession]] = [:]
 
+    /// Actionable requests from the local OpenCode plugin. They belong to the
+    /// existing OpenCode cell, not to a second provider identity.
+    @Published var openCodeInteractions: [OpenCodeInteraction] = []
+
+
     /// Which cell the cursor is over, if any. Driven from the window controller
     /// rather than SwiftUI's `.onHover`: the panel ignores mouse events until
     /// the cursor is over it, so SwiftUI cannot see the crossing that turns
@@ -164,6 +169,8 @@ final class NotchViewModel: ObservableObject {
     /// A tap on a session row in the tooltip: jump to the terminal tab the
     /// session runs in. Takes the session's pid; wired to `SessionFocus`.
     var onFocusSession: ((pid_t) -> Void)?
+    var onOpenCodeInteractionReply: ((String, OpenCodeInteractionReply) -> Void)?
+    var onOpenCodeQuestion: ((OpenCodeInteraction) -> Void)?
     /// Which screen edge the notch is welded to. Everything geometric reads
     /// this through `placement` rather than assuming an axis.
     @Published var edge: NotchEdge = .right
@@ -1180,7 +1187,55 @@ final class NotchViewModel: ObservableObject {
     }
 
     func activity(for providerID: String) -> ActivitySummary? {
-        ActivitySummary(sessions: sessions[providerID] ?? [])
+        var live = sessions[providerID] ?? []
+        guard providerID == "opencode", !openCodeInteractions.isEmpty else {
+            return ActivitySummary(sessions: live)
+        }
+
+        // A pending interaction is stronger evidence than the database's
+        // unfinished assistant message: OpenCode is waiting on the user, not
+        // merely working. Replace the matching row when possible so one logical
+        // session does not appear twice; otherwise add a waiting row so a
+        // request from a sub-agent or freshly-created session is still visible.
+        var seen = Set<String>()
+        for interaction in openCodeInteractions where seen.insert(interaction.sessionID).inserted {
+            let id = "opencode.session.\(interaction.sessionID)"
+            let waitingFor: String
+            switch interaction.kind {
+            case .permission(let request):
+                waitingFor = L10n.t("Approval: \(request.toolName)")
+            case .question(let request):
+                waitingFor = request.questions.first?.question ?? L10n.t("Question")
+            }
+
+            if let index = live.firstIndex(where: { $0.id == id }) {
+                let current = live[index]
+                live[index] = AgentSession(
+                    id: current.id,
+                    name: current.name,
+                    detail: current.detail,
+                    state: .waiting,
+                    waitingFor: waitingFor,
+                    since: current.since,
+                    processID: current.processID
+                )
+            } else {
+                live.append(AgentSession(
+                    id: id,
+                    name: "OpenCode",
+                    detail: L10n.t("Waiting for you"),
+                    state: .waiting,
+                    waitingFor: waitingFor,
+                    since: interaction.createdAt
+                ))
+            }
+        }
+        return ActivitySummary(sessions: live)
+    }
+
+    func openCodeInteraction(for snapshot: ProviderSnapshot) -> OpenCodeInteraction? {
+        guard snapshot.providerID == "opencode" else { return nil }
+        return openCodeInteractions.first
     }
 
     var hoveredSnapshot: ProviderSnapshot? {
