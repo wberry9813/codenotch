@@ -62,6 +62,20 @@ final class NotchLayoutTests: XCTestCase {
         )
     }
 
+    func testOpenCodeInteractionReservesExactlyItsActionArea() {
+        let bare = NotchLayout.cardHeight(windowCount: 2, sessionCount: 1)
+        let interactive = NotchLayout.cardHeight(
+            windowCount: 2,
+            sessionCount: 1,
+            hasOpenCodeInteraction: true
+        )
+        XCTAssertEqual(
+            interactive - bare,
+            NotchLayout.openCodeInteractionHeight,
+            accuracy: 0.001
+        )
+    }
+
     /// The activity indicator lives in the gap between the glyph and the inside
     /// edge of the track, and must not touch either.
     func testActivityRingClearsTheGlyphAndTheTrack() {
