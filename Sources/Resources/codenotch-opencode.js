@@ -8,53 +8,41 @@
 // activity itself is read from opencode.db by Codenotch, which keeps this
 // transport small and avoids duplicating unrelated OpenCode lifecycle events.
 
-import { createConnection } from "node:net";
+import { execFile } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-const SOCKET_PATH = `/tmp/codenotch-${typeof process.getuid === "function" ? process.getuid() : 0}.sock`;
+const BRIDGE_PATH = join(homedir(), ".codenotch", "codenotch-bridge");
 const TIMEOUT_MS = 300000;
 
 function askCodenotch(request) {
   return new Promise((resolve) => {
-    let settled = false;
-    let buffer = "";
-
-    const finish = (value) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      socket.destroy();
-      resolve(value);
-    };
-
-    const socket = createConnection(SOCKET_PATH);
-    const timer = setTimeout(() => finish(null), TIMEOUT_MS);
-
-    socket.setEncoding("utf8");
-    socket.on("connect", () => {
-      // Deliberately do not call socket.end(). Codenotch uses a newline-framed
-      // request so Node can keep the connection open for the response without
-      // half-closing the socket on macOS.
-      socket.write(JSON.stringify({ version: 1, ...request }) + "\n");
-    });
-    socket.on("data", (chunk) => {
-      buffer += chunk;
-      const newline = buffer.indexOf("\n");
-      if (newline < 0) return;
-      try {
-        finish(JSON.parse(buffer.slice(0, newline)));
-      } catch {
-        finish(null);
-      }
-    });
-    socket.on("error", () => finish(null));
-    socket.on("close", () => {
-      if (!settled) finish(null);
-    });
+    try {
+      const child = execFile(
+        BRIDGE_PATH,
+        [],
+        { timeout: TIMEOUT_MS, maxBuffer: 1024 * 1024 },
+        (error, stdout) => {
+          if (error) {
+            resolve(null);
+            return;
+          }
+          try {
+            resolve(JSON.parse(stdout));
+          } catch {
+            resolve(null);
+          }
+        }
+      );
+      child.stdin.write(JSON.stringify({ version: 1, ...request }));
+      child.stdin.end();
+    } catch {
+      resolve(null);
+    }
   });
 }
+
 
 function prettyToolName(name) {
   const raw = String(name || "Tool");
