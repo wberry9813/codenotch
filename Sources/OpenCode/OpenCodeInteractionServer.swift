@@ -22,6 +22,7 @@ final class OpenCodeInteractionServer {
     private let log = Logger(subsystem: "com.vinz.codenotch", category: "OpenCodeInteraction")
     private let store: OpenCodeInteractionStore
     private var listener: NWListener?
+    private var clients: [ObjectIdentifier: ClientContext] = [:]
 
     init(store: OpenCodeInteractionStore) {
         self.store = store
@@ -76,6 +77,10 @@ final class OpenCodeInteractionServer {
 
     func stop() {
         store.releaseAll()
+        for client in clients.values {
+            client.connection.cancel()
+        }
+        clients.removeAll()
         listener?.cancel()
         listener = nil
         unlink(Self.socketPath)
@@ -83,19 +88,21 @@ final class OpenCodeInteractionServer {
 
     private func accept(_ connection: NWConnection) {
         let client = ClientContext(connection: connection)
+        let key = ObjectIdentifier(client)
+        clients[key] = client
+
         connection.stateUpdateHandler = { [weak self, weak client] state in
-            guard case .failed = state else {
-                if case .cancelled = state {
-                    Task { @MainActor in
-                        guard let self, let id = client?.interactionID else { return }
-                        self.store.cancel(id)
-                    }
-                }
-                return
-            }
+            guard state == .cancelled || {
+                if case .failed = state { return true }
+                return false
+            }() else { return }
+
             Task { @MainActor in
-                guard let self, let id = client?.interactionID else { return }
-                self.store.cancel(id)
+                guard let self, let client else { return }
+                if let id = client.interactionID {
+                    self.store.cancel(id)
+                }
+                self.clients.removeValue(forKey: ObjectIdentifier(client))
             }
         }
         connection.start(queue: .main)
@@ -119,7 +126,7 @@ final class OpenCodeInteractionServer {
                 if let content { data.append(content) }
 
                 guard data.count <= Self.maxPayloadSize else {
-                    self.send(.permissionReject, on: client.connection)
+                    self.send(.permissionReject, to: client)
                     return
                 }
 
@@ -142,7 +149,7 @@ final class OpenCodeInteractionServer {
         guard let wire = try? JSONDecoder().decode(OpenCodeInteractionWireRequest.self, from: data),
               wire.version == 1
         else {
-            send(.permissionReject, on: client.connection)
+            send(.permissionReject, to: client)
             return
         }
 
@@ -151,18 +158,18 @@ final class OpenCodeInteractionServer {
                 sessionID: wire.sessionID,
                 requestID: wire.requestID.isEmpty ? nil : wire.requestID
             )
-            send(.resolvedExternally, on: client.connection)
+            send(.resolvedExternally, to: client)
             return
         }
 
         guard let interaction = wire.interaction() else {
-            send(.permissionReject, on: client.connection)
+            send(.permissionReject, to: client)
             return
         }
 
-        let accepted = store.receive(interaction) { [weak self, weak connection = client.connection] reply in
-            guard let self, let connection else { return }
-            self.send(reply, on: connection)
+        let accepted = store.receive(interaction) { [weak self, weak client] reply in
+            guard let self, let client else { return }
+            self.send(reply, to: client)
         }
 
         if accepted {
@@ -174,18 +181,26 @@ final class OpenCodeInteractionServer {
             // A duplicate transport must not decide the user's permission.
             // Tell only that duplicate plugin instance to stand down while the
             // first connection remains the sole request the user can answer.
-            send(.resolvedExternally, on: client.connection)
+            send(.resolvedExternally, to: client)
         }
     }
 
-    private func send(_ reply: OpenCodeInteractionReply, on connection: NWConnection) {
+    private func send(_ reply: OpenCodeInteractionReply, to client: ClientContext) {
         guard var data = try? JSONEncoder().encode(OpenCodeInteractionWireReply.encode(reply)) else {
-            connection.cancel()
+            finish(client)
             return
         }
         data.append(0x0A)
-        connection.send(content: data, completion: .contentProcessed { _ in
-            connection.cancel()
+        client.connection.send(content: data, completion: .contentProcessed { [weak self, weak client] _ in
+            Task { @MainActor in
+                guard let self, let client else { return }
+                self.finish(client)
+            }
         })
+    }
+
+    private func finish(_ client: ClientContext) {
+        clients.removeValue(forKey: ObjectIdentifier(client))
+        client.connection.cancel()
     }
 }
