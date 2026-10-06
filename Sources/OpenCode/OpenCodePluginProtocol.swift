@@ -62,6 +62,8 @@ struct OpenCodeInteractionWireReply: Codable, Equatable {
             OpenCodeInteractionWireReply(decision: "answer", answers: answers)
         case .questionReject:
             OpenCodeInteractionWireReply(decision: "reject", answers: nil)
+        case .resolvedExternally:
+            OpenCodeInteractionWireReply(decision: "resolved", answers: nil)
         }
     }
 }
