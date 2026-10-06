@@ -54,8 +54,9 @@ final class OpenCodeQuestionWindowController: NSObject, NSWindowDelegate {
 
     func reconcile(_ interactions: [OpenCodeInteraction]) {
         let live = Set(interactions.map(\.id))
-        for (id, controller) in windows where !live.contains(id) {
-            controller.close()
+        let stale = windows.keys.filter { !live.contains($0) }
+        for id in stale {
+            windows[id]?.close()
             windows[id] = nil
         }
     }
@@ -83,10 +84,19 @@ private struct OpenCodeQuestionAnswerView: View {
     @State private var custom: [Int: String] = [:]
 
     private var answers: [[String]] {
-        request.questions.enumerated().map { index, _ in
+        request.questions.enumerated().map { index, question in
             var values = Array(selected[index] ?? []).sorted()
             let typed = (custom[index] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-            if !typed.isEmpty { values.append(typed) }
+            if !typed.isEmpty {
+                // A custom answer is an alternative to the selected option for
+                // single-choice questions. Multi-select may deliberately combine
+                // predefined choices with free text.
+                if question.multiSelect {
+                    values.append(typed)
+                } else {
+                    values = [typed]
+                }
+            }
             return values
         }
     }
