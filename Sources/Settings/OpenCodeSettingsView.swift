@@ -62,7 +62,7 @@ struct OpenCodeSettingsView: View {
                     }
                 }
 
-                Text(L10n.t("Codenotch installs ~/.config/opencode/plugins/codenotch.js plus its private ~/.codenotch/codenotch-bridge helper. Other plugin files are left untouched. Restart a running OpenCode process after installing or updating the plugin."))
+                Text(L10n.t("Codenotch installs only ~/.config/opencode/plugins/codenotch.js. Other plugin files are left untouched. Restart a running OpenCode process after installing or updating the plugin."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
