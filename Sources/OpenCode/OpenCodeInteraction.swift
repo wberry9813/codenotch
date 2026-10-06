@@ -116,6 +116,16 @@ final class OpenCodeInteractionStore: ObservableObject {
         }
     }
 
+    /// Stop owning every blocking request without making a decision for the
+    /// user. The plugin treats this as "Codenotch stood down", so OpenCode's
+    /// native TUI/Web UI remains the place where the request can be answered.
+    func releaseAll() {
+        let ids = interactions.map(\.id)
+        for id in ids {
+            resolve(id, with: .resolvedExternally)
+        }
+    }
+
     func allowOnce(_ id: String) {
         resolve(id, with: .permissionOnce)
     }
