@@ -89,9 +89,9 @@ enum OpenCodeActivity {
     /// OpenCode 2.x stores the role in the row's `type` column and the
     /// provider under `model.providerID`; 1.x stores both in `data`.
     ///
-    /// A missing provider is still a valid generic OpenCode turn. Only the
-    /// exact `google` provider is excluded because the existing Gemini API
-    /// activity reader already owns that turn.
+    /// A missing provider is still a valid generic OpenCode turn. A live
+    /// `google` turn marks its entire folded root as Gemini-owned because the
+    /// existing Gemini API activity reader already reports that same work.
     private struct UnfinishedTurn {
         let provider: String?
     }
