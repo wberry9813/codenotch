@@ -80,6 +80,17 @@ final class PreferencesMigrationTests: XCTestCase {
         XCTAssertFalse(preferences.isConnected("minimax"))
         XCTAssertTrue(preferences.deepSeekPricingEnabled)
         XCTAssertEqual(preferences.deepSeekPricingSchedule, .current)
+        XCTAssertFalse(preferences.openCodeSessionsEnabled)
+    }
+
+    func testOpenCodeSessionsPreferencePersistsIndependentlyOfProviderConnection() {
+        let (fresh, name) = makeDefaults()
+        let preferences = Preferences(defaults: fresh)
+        preferences.openCodeSessionsEnabled = true
+
+        let again = Preferences(defaults: UserDefaults(suiteName: name)!)
+        XCTAssertTrue(again.openCodeSessionsEnabled)
+        XCTAssertFalse(again.isConnected("opencode"))
     }
 
     /// MiniMax is discovered like everyone else, and stays off until switched
