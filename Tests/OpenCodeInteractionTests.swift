@@ -187,17 +187,64 @@ final class OpenCodeInteractionTests: XCTestCase {
         XCTAssertTrue(store.interactions.isEmpty)
     }
 
+    func testExternalResolutionReleasesOnlyTheMatchingPendingRequest() {
+        let store = OpenCodeInteractionStore()
+        var first: OpenCodeInteractionReply?
+        var second: OpenCodeInteractionReply?
+        let a = permission(session: "session-a", request: "request-a")
+        let b = permission(session: "session-b", request: "request-b")
+
+        XCTAssertTrue(store.receive(a) { first = $0 })
+        XCTAssertTrue(store.receive(b) { second = $0 })
+
+        store.resolveExternally(sessionID: "session-a", requestID: "request-a")
+
+        XCTAssertEqual(first, .resolvedExternally)
+        XCTAssertNil(second)
+        XCTAssertEqual(store.interactions.map(\.id), [b.id])
+    }
+
+    func testSessionOnlyExternalResolutionUsesTheOldestBlockingRequest() {
+        let store = OpenCodeInteractionStore()
+        var first: OpenCodeInteractionReply?
+        var second: OpenCodeInteractionReply?
+
+        let older = OpenCodeInteraction(
+            sessionID: "s1",
+            requestID: "old",
+            kind: permission(request: "old").kind,
+            createdAt: Date(timeIntervalSince1970: 10)
+        )
+        let newer = OpenCodeInteraction(
+            sessionID: "s1",
+            requestID: "new",
+            kind: permission(request: "new").kind,
+            createdAt: Date(timeIntervalSince1970: 20)
+        )
+
+        XCTAssertTrue(store.receive(older) { first = $0 })
+        XCTAssertTrue(store.receive(newer) { second = $0 })
+
+        store.resolveExternally(sessionID: "s1")
+
+        XCTAssertEqual(first, .resolvedExternally)
+        XCTAssertNil(second)
+        XCTAssertEqual(store.interactions.map(\.requestID), ["new"])
+    }
+
     func testWireRepliesUsePluginDecisionVocabulary() throws {
         let once = OpenCodeInteractionWireReply.encode(.permissionOnce)
         let always = OpenCodeInteractionWireReply.encode(.permissionAlways)
         let reject = OpenCodeInteractionWireReply.encode(.questionReject)
         let answer = OpenCodeInteractionWireReply.encode(.questionAnswers([["A"], ["B", "C"]]))
+        let resolved = OpenCodeInteractionWireReply.encode(.resolvedExternally)
 
         XCTAssertEqual(once.decision, "once")
         XCTAssertEqual(always.decision, "always")
         XCTAssertEqual(reject.decision, "reject")
         XCTAssertEqual(answer.decision, "answer")
         XCTAssertEqual(answer.answers, [["A"], ["B", "C"]])
+        XCTAssertEqual(resolved.decision, "resolved")
 
         XCTAssertNoThrow(try JSONEncoder().encode(answer))
     }
