@@ -34,17 +34,30 @@ enum OpenCodeActivity {
             columns: 7
         )
 
-        var seen: Set<String> = []
-        var out: [AgentSession] = []
+        // Ownership is decided for the folded root, not row-by-row. A parent
+        // and sub-agent may use different providers concurrently; if any live
+        // turn in that root uses Google, the existing Gemini API reader owns the
+        // whole folded row so the same work never appears in two provider cards.
+        var geminiOwnedRoots: Set<String> = []
+        var candidates: [String: AgentSession] = [:]
+        var order: [String] = []
 
         for row in rows {
             let root = row[0]
-            guard !root.isEmpty, !seen.contains(root) else { continue }
+            guard !root.isEmpty else { continue }
             guard let updated = Double(row[4]), Int(updated) >= cutoffMillis else { continue }
             guard let created = Double(row[3]) else { continue }
-            guard isUnfinishedOpenCodeTurn(row[5], type: row[6]) else { continue }
+            guard let turn = unfinishedTurn(row[5], type: row[6]) else { continue }
 
-            seen.insert(root)
+            if turn.provider == "google" {
+                geminiOwnedRoots.insert(root)
+                continue
+            }
+
+            // Rows arrive newest first. Keep the first generic turn for this
+            // folded root, while continuing to scan older sibling rows in case
+            // one establishes Gemini ownership.
+            guard candidates[root] == nil else { continue }
 
             let title = row[1]
             let directory = row[2]
@@ -56,17 +69,21 @@ enum OpenCodeActivity {
                 detail = L10n.t("Working in \(URL(fileURLWithPath: directory).lastPathComponent)")
             }
 
-            out.append(AgentSession(
+            candidates[root] = AgentSession(
                 id: "opencode.session.\(root)",
                 name: name,
                 detail: detail,
                 state: .busy,
                 waitingFor: nil,
                 since: Date(timeIntervalSince1970: created / 1000)
-            ))
+            )
+            order.append(root)
         }
 
-        return out
+        return order.compactMap { root in
+            guard !geminiOwnedRoots.contains(root) else { return nil }
+            return candidates[root]
+        }
     }
 
     /// OpenCode 2.x stores the role in the row's `type` column and the
@@ -75,22 +92,28 @@ enum OpenCodeActivity {
     /// A missing provider is still a valid generic OpenCode turn. Only the
     /// exact `google` provider is excluded because the existing Gemini API
     /// activity reader already owns that turn.
-    private static func isUnfinishedOpenCodeTurn(_ data: String, type: String) -> Bool {
+    private struct UnfinishedTurn {
+        let provider: String?
+    }
+
+    private static func unfinishedTurn(_ data: String, type: String) -> UnfinishedTurn? {
         guard let bytes = data.data(using: .utf8),
               let object = try? JSONSerialization.jsonObject(with: bytes),
               let message = object as? [String: Any]
-        else { return false }
+        else { return nil }
 
         let role = type.isEmpty ? (message["role"] as? String) : type
-        guard role == "assistant" else { return false }
+        guard role == "assistant" else { return nil }
 
         let provider = (message["model"] as? [String: Any])?["providerID"] as? String
             ?? message["providerID"] as? String
-        guard provider != "google" else { return false }
 
-        guard let time = message["time"] as? [String: Any] else { return true }
-        let completed = time["completed"]
-        return completed == nil || completed is NSNull
+        if let time = message["time"] as? [String: Any] {
+            let completed = time["completed"]
+            guard completed == nil || completed is NSNull else { return nil }
+        }
+
+        return UnfinishedTurn(provider: provider)
     }
 }
 
