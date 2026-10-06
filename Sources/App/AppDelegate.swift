@@ -128,21 +128,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // not erase the user's choice: an already-installed older plugin
             // may still be usable, and Settings reports the installation state.
             try? OpenCodePluginInstaller.install()
-            openCodeInteractionServer.start()
         }
 
-        preferences.$openCodeSessionsEnabled
-            .removeDuplicates()
-            .dropFirst()
-            .receive(on: RunLoop.main)
-            .sink { [weak openCodeInteractionServer] enabled in
-                if enabled {
-                    openCodeInteractionServer?.start()
-                } else {
-                    openCodeInteractionServer?.stop()
-                }
+        Publishers.CombineLatest(
+            preferences.$connectedProviders,
+            preferences.$openCodeSessionsEnabled
+        )
+        .map { values in
+            values.1 && values.0.contains("opencode")
+        }
+        .removeDuplicates()
+        .receive(on: RunLoop.main)
+        .sink { [weak openCodeInteractionServer] enabled in
+            if enabled {
+                openCodeInteractionServer?.start()
+            } else {
+                // If the OpenCode cell is hidden, do not hold prompts in an
+                // invisible Codenotch surface. OpenCode's own UI remains able
+                // to answer them because the plugin receives no socket reply.
+                openCodeInteractionServer?.stop()
             }
-            .store(in: &cancellables)
+        }
+        .store(in: &cancellables)
 
         // One notch per display: the fleet owns a controller for each screen
         // the scope asks for and fans every reading out to all of them. The
@@ -967,9 +974,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             preferences.$openCodeSessionsEnabled
         )
         activityPreferences
-            .map { connected, openCodeSessionsEnabled -> Set<String> in
-                var enabled = connected
-                if !openCodeSessionsEnabled { enabled.remove("opencode") }
+            .map { values -> Set<String> in
+                var enabled = values.0
+                if !values.1 { enabled.remove("opencode") }
                 return enabled
             }
             .removeDuplicates()
