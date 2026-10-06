@@ -59,6 +59,34 @@ The implementation must make local OpenCode session capability independent from
 OpenCode Go authentication while preserving existing provider attribution where
 it is already intentional.
 
+## Product decisions made during implementation
+
+- Do **not** add a second OpenCode provider/cell. Local sessions and OpenCode Go
+  usage share the existing `opencode` identity.
+- The existing provider visibility behavior stays unchanged. Enabling local
+  sessions turns on the existing OpenCode cell if necessary; disabling local
+  sessions does not turn off OpenCode Go usage.
+- Local session monitoring and interaction do not require an authenticated
+  OpenCode Go account.
+- The OpenCode settings live as a nested provider pane under Accounts, alongside
+  the existing DeepSeek/Ollama/LM Studio provider panes.
+- Permission actions are shown directly in the existing OpenCode tooltip.
+- Question summaries are shown in that tooltip, but free-text/multi-select input
+  opens a small ordinary key-capable window. `NotchPanel` is intentionally a
+  non-activating panel and cannot safely host keyboard text entry.
+- Codenotch installs only
+  `~/.config/opencode/plugins/codenotch.js`. It never overwrites another
+  plugin's file.
+- File-level coexistence with other OpenCode plugins is supported. Two separate
+  UI plugins must not both own the same permission/question request at once;
+  users should disable the other interaction integration while Codenotch owns
+  OpenCode prompts.
+- If the OpenCode cell is hidden, local interaction is disabled as well so
+  Codenotch never holds a prompt in an invisible surface.
+- Disabling the integration or quitting Codenotch releases held requests without
+  denying them. OpenCode's native UI remains able to answer.
+- A request answered in OpenCode's own UI is removed from Codenotch immediately.
+
 ## Target behavior
 
 ### Session capability
