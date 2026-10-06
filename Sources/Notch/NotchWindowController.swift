@@ -1255,7 +1255,8 @@ final class NotchWindowController {
             showsLocalPerformance: snapshot.showsLocalPerformance,
                 localLedgerRows: snapshot.localLedgerRowCount,
             compactRowCount: snapshot.compactRowCount,
-            showsDeepSeekPricing: model.deepSeekPricingEnabled
+            showsDeepSeekPricing: model.deepSeekPricingEnabled,
+            hasOpenCodeInteraction: model.openCodeInteraction(for: snapshot) != nil
         )
         // Across the stack the region is the card, its tail, and the gap the
         // pointer has to cross. Along it, the card's own extent.
