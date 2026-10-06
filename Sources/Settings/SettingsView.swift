@@ -26,7 +26,7 @@ extension View {
 /// crossing-and-notification machinery it switches is Notifications' to
 /// explain.
 private enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
-    case accounts, phone, deepseek, ollama, lmstudio, customEndpoints, appearance, notifications, costs, general
+    case accounts, phone, deepseek, opencode, ollama, lmstudio, customEndpoints, appearance, notifications, costs, general
 
     /// The sections the sidebar lists; Phone only once pairing is offered.
     static var visible: [SettingsSection] {
@@ -36,7 +36,7 @@ private enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
     /// Providers with a pane of their own. They are accounts too, so the
     /// sidebar nests them under Accounts rather than listing them beside
     /// Appearance and General, where they read as app-wide settings.
-    static let providerPanes: [SettingsSection] = [.deepseek, .ollama, .lmstudio, .customEndpoints]
+    static let providerPanes: [SettingsSection] = [.deepseek, .opencode, .ollama, .lmstudio, .customEndpoints]
 
     /// The sidebar's own rows: everything visible that is not nested.
     static var topLevel: [SettingsSection] {
@@ -50,6 +50,7 @@ private enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         case .accounts:      return L10n.t("Accounts")
         case .phone:         return L10n.t("Phone")
         case .deepseek:      return "DeepSeek"
+        case .opencode:      return "OpenCode"
         case .ollama:        return "Ollama"   // a product name, the same in every language
         case .lmstudio:      return "LM Studio"
         case .customEndpoints: return L10n.t("Custom Endpoints")
@@ -65,6 +66,7 @@ private enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
     var logo: ProviderGlyph? {
         switch self {
         case .deepseek: return .deepseek
+        case .opencode: return .opencode
         case .ollama:   return .ollama
         case .lmstudio: return .lmstudio
         default:        return nil
@@ -77,6 +79,7 @@ private enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         case .accounts:      return L10n.t("Choose which providers the notch reads.")
         case .phone:         return L10n.t("See your usage on your phone.")
         case .deepseek:      return L10n.t("Peak and off-peak pricing for your DeepSeek spend.")
+        case .opencode:      return L10n.t("Local OpenCode sessions and interaction.")
         case .ollama:        return L10n.t("Models running in Ollama on this Mac.")
         case .lmstudio:      return L10n.t("Models loaded in LM Studio on this Mac.")
         case .customEndpoints: return L10n.t("OpenAI-compatible APIs, local runtimes and custom proxies.")
@@ -92,6 +95,7 @@ private enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         case .accounts:      return "person.crop.circle.fill"
         case .phone:         return "iphone"
         case .deepseek:      return "chart.line.uptrend.xyaxis"
+        case .opencode:      return "chevron.left.forwardslash.chevron.right"
         case .ollama:        return "desktopcomputer"
         case .lmstudio:      return "cpu"
         case .customEndpoints: return "network"
@@ -110,6 +114,7 @@ private enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         case .accounts:      return .blue
         case .phone:         return .green
         case .deepseek:      return .orange
+        case .opencode:      return .blue
         case .ollama:        return .teal
         case .lmstudio:      return .purple
         case .customEndpoints: return .indigo
@@ -709,6 +714,7 @@ struct SettingsView: View {
         case .phone:         phonePane
         case .costs:         CostSettingsPane()
         case .deepseek:      DeepSeekPricingSettingsView(preferences: preferences)
+        case .opencode:      OpenCodeSettingsView(preferences: preferences)
         case .ollama:
             if let usageStore {
                 Form {
