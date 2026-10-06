@@ -1169,7 +1169,7 @@ private struct OpenCodeInteractionSection: View {
                 .font(Typography.cardBody.weight(.semibold))
                 .foregroundStyle(Palette.textPrimary)
                 .padding(.horizontal, Design.px(18))
-                .frame(height: Design.px(48))
+                .frame(height: NotchLayout.openCodeInteractionButtonHeight)
                 .background(Capsule().fill(Palette.textPrimary.opacity(0.13)))
                 .contentShape(Capsule())
         }
