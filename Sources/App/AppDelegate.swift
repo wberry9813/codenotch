@@ -12,6 +12,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var activityCoordinator: ActivityCoordinator?
     private var openCodeInteractionStore: OpenCodeInteractionStore?
     private var openCodeInteractionServer: OpenCodeInteractionServer?
+    private var openCodeQuestionWindow: OpenCodeQuestionWindowController?
     private var piResponseMonitor: PiResponseMonitor?
     private var ollamaRelay: OllamaActivityRelay?
     private var lmstudioMetrics: LMStudioMetrics?
@@ -113,13 +114,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // OpenCode activity is read from its local database; actionable
         // permission/question requests arrive over a separate local socket.
-        // Starting the socket does not require an OpenCode Go sign-in and is
-        // harmless until the Codenotch OpenCode plugin is installed.
+        // Both belong to the existing OpenCode identity but remain independent
+        // of OpenCode Go authentication.
         let openCodeInteractionStore = OpenCodeInteractionStore()
         let openCodeInteractionServer = OpenCodeInteractionServer(store: openCodeInteractionStore)
-        openCodeInteractionServer.start()
+        let openCodeQuestionWindow = OpenCodeQuestionWindowController()
         self.openCodeInteractionStore = openCodeInteractionStore
         self.openCodeInteractionServer = openCodeInteractionServer
+        self.openCodeQuestionWindow = openCodeQuestionWindow
+
+        if preferences.openCodeSessionsEnabled {
+            // Keep an enabled installation current on app launch. Failure does
+            // not erase the user's choice: an already-installed older plugin
+            // may still be usable, and Settings reports the installation state.
+            try? OpenCodePluginInstaller.install()
+            openCodeInteractionServer.start()
+        }
+
+        preferences.$openCodeSessionsEnabled
+            .removeDuplicates()
+            .dropFirst()
+            .receive(on: RunLoop.main)
+            .sink { [weak openCodeInteractionServer] enabled in
+                if enabled {
+                    openCodeInteractionServer?.start()
+                } else {
+                    openCodeInteractionServer?.stop()
+                }
+            }
+            .store(in: &cancellables)
 
         // One notch per display: the fleet owns a controller for each screen
         // the scope asks for and fans every reading out to all of them. The
@@ -431,6 +454,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // A session row answers where it runs by taking you there.
             fleet.onFocusSession = { pid in
                 Task { _ = await SessionFocus.focus(pid: pid) }
+            }
+            fleet.onOpenCodeInteractionReply = { [weak openCodeInteractionStore] id, reply in
+                openCodeInteractionStore?.resolve(id, with: reply)
+            }
+            fleet.onOpenCodeQuestion = { [weak openCodeQuestionWindow, weak openCodeInteractionStore] interaction in
+                openCodeQuestionWindow?.present(
+                    interaction,
+                    onAnswer: { answers in
+                        openCodeInteractionStore?.resolve(
+                            interaction.id,
+                            with: .questionAnswers(answers)
+                        )
+                    },
+                    onSkip: {
+                        openCodeInteractionStore?.resolve(
+                            interaction.id,
+                            with: .questionReject
+                        )
+                    }
+                )
             }
             self.settings = settings
 
@@ -919,12 +962,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.noteWorkState(providerID: id, sessions: sessions)
         }
         self.activityCoordinator = activity
-        activity.setEnabled(preferences.connectedProviders)
-        preferences.$connectedProviders
+        let activityPreferences = Publishers.CombineLatest(
+            preferences.$connectedProviders,
+            preferences.$openCodeSessionsEnabled
+        )
+        activityPreferences
+            .map { connected, openCodeSessionsEnabled -> Set<String> in
+                var enabled = connected
+                if !openCodeSessionsEnabled { enabled.remove("opencode") }
+                return enabled
+            }
             .removeDuplicates()
             .receive(on: RunLoop.main)
-            .sink { [weak activity] connected in
-                activity?.setEnabled(connected)
+            .sink { [weak activity] enabled in
+                activity?.setEnabled(enabled)
+            }
+            .store(in: &cancellables)
+
+        openCodeInteractionStore.$interactions
+            .receive(on: RunLoop.main)
+            .sink { [weak fleet, weak openCodeQuestionWindow] interactions in
+                fleet?.setOpenCodeInteractions(interactions)
+                openCodeQuestionWindow?.reconcile(interactions)
             }
             .store(in: &cancellables)
 
@@ -1252,6 +1311,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        openCodeQuestionWindow?.closeAll()
         openCodeInteractionServer?.stop()
         ollamaRelay?.configure(enabled: false, endpoint: OllamaEndpoint.defaultAddress)
         lmstudioMetrics?.stop()
