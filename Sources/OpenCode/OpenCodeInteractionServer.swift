@@ -165,17 +165,10 @@ final class OpenCodeInteractionServer {
         }
 
         if !accepted {
-            // Duplicate plugin instances must never leave a second OpenCode
-            // request waiting forever. The first registered request remains the
-            // one the user can answer; the duplicate connection is rejected.
-            send(rejection(for: interaction), on: client.connection)
-        }
-    }
-
-    private func rejection(for interaction: OpenCodeInteraction) -> OpenCodeInteractionReply {
-        switch interaction.kind {
-        case .permission: .permissionReject
-        case .question: .questionReject
+            // A duplicate transport must not decide the user's permission.
+            // Tell only that duplicate plugin instance to stand down while the
+            // first connection remains the sole request the user can answer.
+            send(.resolvedExternally, on: client.connection)
         }
     }
 
