@@ -205,6 +205,10 @@ enum NotchLayout {
     static let usageDetailChartGap = Design.px(18)
     static let usageDetailBarGap = Design.px(5)
     static let sessionRowGap = Design.px(10)   // the two lines of one session
+    /// Fixed room for one actionable OpenCode request beneath the live session list.
+    /// The question card opens a key window for typing, so the edge card only needs
+    /// its summary plus one row of actions.
+    static let openCodeInteractionHeight = Design.px(154)
     /// The spinner beside a session's status. Sized against the body text's cap
     /// (18px) rather than picked by eye, so it reads as part of the word rather
     /// than a bullet pinned near it.
@@ -395,7 +399,8 @@ enum NotchLayout {
                            localLedgerRows: Int = 0,
                            compactRowCount: Int = 0,
                            showsDeepSeekPricing: Bool = true,
-                           costRows: Int = 0) -> CGFloat {
+                           costRows: Int = 0,
+                           hasOpenCodeInteraction: Bool = false) -> CGFloat {
         let header = max(glyphSize, cardTitleLineHeight)
             + (hasPlan ? cardBodyLineHeight : 0)
         var height = 2 * cardPadding + header
@@ -477,6 +482,9 @@ enum NotchLayout {
             if sessionCount > shown {
                 height += blockSpacing + cardBodyLineHeight
             }
+        }
+        if hasOpenCodeInteraction {
+            height += openCodeInteractionHeight
         }
         return height
     }
