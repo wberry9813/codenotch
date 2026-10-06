@@ -197,6 +197,12 @@ async function handleV2Event(event, ctx) {
     const questions = v2QuestionsFromForm(form);
     if (!questions || !form?.id || !form?.sessionID) return;
 
+    // OpenCode 2 forms have no plugin reply API. Only take ownership when this
+    // exact service process has a verified HTTP route back to the form.
+    // Otherwise leave the request entirely to OpenCode's own UI rather than
+    // showing an Answer button Codenotch cannot make effective.
+    if (!v2ServiceEndpoint()) return;
+
     const response = await askCodenotch({
       kind: "question",
       sessionID: form.sessionID,
