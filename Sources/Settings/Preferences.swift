@@ -51,6 +51,13 @@ final class Preferences: ObservableObject {
         didSet { defaults.set(phoneLinkPort, forKey: Keys.phoneLinkPort) }
     }
 
+    /// Whether Codenotch installs its own OpenCode plugin and accepts local
+    /// permission/question requests. Separate from the OpenCode Go account:
+    /// usage can be signed out while local sessions remain useful, and vice versa.
+    @Published var openCodeSessionsEnabled: Bool {
+        didSet { defaults.set(openCodeSessionsEnabled, forKey: Keys.openCodeSessionsEnabled) }
+    }
+
 
     @Published var lmstudioEndpoint: String {
         didSet { defaults.set(lmstudioEndpoint, forKey: Keys.lmstudioEndpoint) }
@@ -513,6 +520,8 @@ final class Preferences: ObservableObject {
         static let phoneLinkEnabled = "phoneLinkEnabled"
         static let phoneLinkPort = "phoneLinkPort"
 
+        static let openCodeSessionsEnabled = "openCodeSessionsEnabled"
+
         static let lmstudioEndpoint = "lmstudioEndpoint"
         static let introducedOllama = "introducedOllama"
         static let migratedOllamaID = "migratedOllamaLocalID"
@@ -798,6 +807,8 @@ final class Preferences: ObservableObject {
         // says where it listens, and 1234 is what it ships with.
         self.phoneLinkEnabled = defaults.object(forKey: Keys.phoneLinkEnabled) as? Bool ?? false
         self.phoneLinkPort = defaults.object(forKey: Keys.phoneLinkPort) as? Int ?? 8788
+
+        self.openCodeSessionsEnabled = defaults.object(forKey: Keys.openCodeSessionsEnabled) as? Bool ?? false
 
         self.lmstudioEndpoint = (try? LMStudioEndpoint.parse(
             defaults.string(forKey: Keys.lmstudioEndpoint)
