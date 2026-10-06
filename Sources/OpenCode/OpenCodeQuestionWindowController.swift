@@ -193,7 +193,11 @@ private struct OpenCodeQuestionAnswerView: View {
                 Image(systemName: isSelected(option.label, index: index)
                       ? (question.multiSelect ? "checkmark.square.fill" : "largecircle.fill.circle")
                       : (question.multiSelect ? "square" : "circle"))
-                    .foregroundStyle(isSelected(option.label, index: index) ? .tint : .secondary)
+                    .foregroundStyle(
+                        isSelected(option.label, index: index)
+                            ? Color.accentColor
+                            : Color(nsColor: .secondaryLabelColor)
+                    )
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(option.label)
