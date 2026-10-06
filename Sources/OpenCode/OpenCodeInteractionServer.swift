@@ -92,17 +92,17 @@ final class OpenCodeInteractionServer {
         clients[key] = client
 
         connection.stateUpdateHandler = { [weak self, weak client] state in
-            guard state == .cancelled || {
-                if case .failed = state { return true }
-                return false
-            }() else { return }
-
-            Task { @MainActor in
-                guard let self, let client else { return }
-                if let id = client.interactionID {
-                    self.store.cancel(id)
+            switch state {
+            case .failed, .cancelled:
+                Task { @MainActor in
+                    guard let self, let client else { return }
+                    if let id = client.interactionID {
+                        self.store.cancel(id)
+                    }
+                    self.clients.removeValue(forKey: ObjectIdentifier(client))
                 }
-                self.clients.removeValue(forKey: ObjectIdentifier(client))
+            default:
+                break
             }
         }
         connection.start(queue: .main)
