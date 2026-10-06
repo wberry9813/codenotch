@@ -261,6 +261,46 @@ final class OpenCodeActivityTests: XCTestCase {
         XCTAssertEqual(sessions.first?.detail, "Working in codenotch")
     }
 
+    func testMixedProviderSubagentRootBelongsOnlyToGeminiWhenAnyLiveTurnUsesGoogle() throws {
+        let earlier = now.addingTimeInterval(-5)
+        let url = try makeV1Database(
+            sessions: [
+                SessionRow(
+                    id: "p1",
+                    title: "Parent task",
+                    directory: "/Users/x/Projects/codenotch",
+                    updated: now
+                ),
+                SessionRow(id: "c1", parentID: "p1", title: "google subagent", updated: now)
+            ],
+            messages: [
+                // Newer generic parent turn is encountered first by the SQL.
+                MessageRow(
+                    id: "m1",
+                    sessionID: "p1",
+                    created: now,
+                    updated: now,
+                    data: message(provider: "deepseek-direct", created: now)
+                ),
+                // An older-but-still-live Google subagent must still claim the
+                // folded root for the existing Gemini API reader.
+                MessageRow(
+                    id: "m2",
+                    sessionID: "c1",
+                    created: earlier,
+                    updated: earlier,
+                    data: message(provider: "google", created: earlier)
+                )
+            ]
+        )
+
+        XCTAssertTrue(OpenCodeActivity.read(database: url, staleAfter: 45, now: now).isEmpty)
+
+        let gemini = OpenCodeGeminiActivity.read(database: url, staleAfter: 45, now: now)
+        XCTAssertEqual(gemini.count, 1)
+        XCTAssertEqual(gemini.first?.id, "gemini-api.opencode.p1")
+    }
+
     func testOpenCode2SchemaIsRead() throws {
         let url = try makeV2Database(
             sessions: [SessionRow(
