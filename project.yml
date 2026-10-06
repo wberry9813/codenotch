@@ -55,17 +55,12 @@ targets:
           # copy any unrecognised file into the app bundle's Resources, and a
           # developer README has no business shipping to users.
           - "Vendor/**/README.md"
-          - "OpenCodeBridge/**"
     dependencies:
       - package: Sparkle
       - package: SwiftNIO
         product: NIOHTTP1
       - package: SwiftNIO
         product: NIOPosix
-      - target: CodenotchOpenCodeBridge
-        embed: true
-        copy:
-          destination: resources
     info:
       path: Sources/Info.plist
       properties:
@@ -140,15 +135,6 @@ targets:
         # together if the Desktop source is ever dropped.
         SWIFT_OBJC_BRIDGING_HEADER: Sources/Codenotch-Bridging-Header.h
 
-  CodenotchOpenCodeBridge:
-    type: tool
-    platform: macOS
-    sources:
-      - path: Sources/OpenCodeBridge
-    settings:
-      base:
-        PRODUCT_NAME: codenotch-bridge
-
   CodenotchTests:
     type: bundle.unit-test
     platform: macOS
@@ -165,7 +151,6 @@ schemes:
   Codenotch:
     build:
       targets:
-        CodenotchOpenCodeBridge: all
         Codenotch: all
         CodenotchTests: [test]
     run:
