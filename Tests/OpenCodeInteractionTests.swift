@@ -266,14 +266,10 @@ final class OpenCodeInteractionTests: XCTestCase {
 }
 
 final class OpenCodePluginInstallerTests: XCTestCase {
-    func testInteractionPluginAndBridgeAreBundledWithTheApp() {
+    func testInteractionPluginIsBundledWithTheApp() {
         XCTAssertNotNil(
             OpenCodePluginInstaller.bundledPlugin,
             "codenotch-opencode.js must be copied into the app resources"
-        )
-        XCTAssertNotNil(
-            OpenCodePluginInstaller.bundledBridge,
-            "codenotch-bridge must be copied into the app resources"
         )
     }
 
@@ -297,15 +293,10 @@ final class OpenCodePluginInstallerTests: XCTestCase {
     func testDestinationDoesNotOverlapCodeIslandPlugin() throws {
         let home = try root()
         let destination = OpenCodePluginInstaller.destination(home: home)
-        let bridge = OpenCodePluginInstaller.bridgeDestination(home: home)
 
         XCTAssertEqual(
             destination.path,
             home.appendingPathComponent(".config/opencode/plugins/codenotch.js").path
-        )
-        XCTAssertEqual(
-            bridge.path,
-            home.appendingPathComponent(".codenotch/codenotch-bridge").path
         )
         XCTAssertNotEqual(
             destination.lastPathComponent,
@@ -313,15 +304,12 @@ final class OpenCodePluginInstallerTests: XCTestCase {
         )
     }
 
-    func testInstallCopiesOnlyCodenotchFilesAndStatusTracksContent() throws {
+    func testInstallCopiesOnlyCodenotchPluginAndStatusTracksContent() throws {
         let home = try root()
-        let pluginSource = home.appendingPathComponent("bundled.js")
-        let bridgeSource = home.appendingPathComponent("bundled-bridge")
-        try Data("plugin-v1".utf8).write(to: pluginSource)
-        try Data("bridge-v1".utf8).write(to: bridgeSource)
+        let source = home.appendingPathComponent("bundled.js")
+        try Data("plugin-v1".utf8).write(to: source)
 
         let destination = OpenCodePluginInstaller.destination(home: home)
-        let bridgeDestination = OpenCodePluginInstaller.bridgeDestination(home: home)
         let codeIsland = destination.deletingLastPathComponent().appendingPathComponent("codeisland.js")
         try FileManager.default.createDirectory(
             at: codeIsland.deletingLastPathComponent(),
@@ -330,46 +318,25 @@ final class OpenCodePluginInstallerTests: XCTestCase {
         try Data("leave-me-alone".utf8).write(to: codeIsland)
 
         XCTAssertEqual(
-            OpenCodePluginInstaller.status(
-                destination: destination,
-                bundledPlugin: pluginSource,
-                bridgeDestination: bridgeDestination,
-                bundledBridge: bridgeSource
-            ),
+            OpenCodePluginInstaller.status(destination: destination, bundledPlugin: source),
             .notInstalled
         )
 
-        try OpenCodePluginInstaller.install(
-            destination: destination,
-            bundledPlugin: pluginSource,
-            bridgeDestination: bridgeDestination,
-            bundledBridge: bridgeSource
-        )
+        try OpenCodePluginInstaller.install(destination: destination, bundledPlugin: source)
 
         XCTAssertEqual(
-            OpenCodePluginInstaller.status(
-                destination: destination,
-                bundledPlugin: pluginSource,
-                bridgeDestination: bridgeDestination,
-                bundledBridge: bridgeSource
-            ),
+            OpenCodePluginInstaller.status(destination: destination, bundledPlugin: source),
             .current
         )
         XCTAssertEqual(try Data(contentsOf: destination), Data("plugin-v1".utf8))
-        XCTAssertEqual(try Data(contentsOf: bridgeDestination), Data("bridge-v1".utf8))
-        XCTAssertTrue(FileManager.default.isExecutableFile(atPath: bridgeDestination.path))
         XCTAssertEqual(try Data(contentsOf: codeIsland), Data("leave-me-alone".utf8))
 
-        try Data("plugin-v2".utf8).write(to: pluginSource)
+        try Data("plugin-v2".utf8).write(to: source)
         XCTAssertEqual(
-            OpenCodePluginInstaller.status(
-                destination: destination,
-                bundledPlugin: pluginSource,
-                bridgeDestination: bridgeDestination,
-                bundledBridge: bridgeSource
-            ),
+            OpenCodePluginInstaller.status(destination: destination, bundledPlugin: source),
             .outdated
         )
     }
+
 
 }
