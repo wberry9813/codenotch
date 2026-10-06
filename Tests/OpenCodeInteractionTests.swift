@@ -232,6 +232,21 @@ final class OpenCodeInteractionTests: XCTestCase {
         XCTAssertEqual(store.interactions.map(\.requestID), ["new"])
     }
 
+    func testReleaseAllStandsDownWithoutRejectingOpenCodeRequests() {
+        let store = OpenCodeInteractionStore()
+        var permissionReply: OpenCodeInteractionReply?
+        var questionReply: OpenCodeInteractionReply?
+
+        XCTAssertTrue(store.receive(permission(request: "p")) { permissionReply = $0 })
+        XCTAssertTrue(store.receive(question(request: "q")) { questionReply = $0 })
+
+        store.releaseAll()
+
+        XCTAssertEqual(permissionReply, .resolvedExternally)
+        XCTAssertEqual(questionReply, .resolvedExternally)
+        XCTAssertTrue(store.interactions.isEmpty)
+    }
+
     func testWireRepliesUsePluginDecisionVocabulary() throws {
         let once = OpenCodeInteractionWireReply.encode(.permissionOnce)
         let always = OpenCodeInteractionWireReply.encode(.permissionAlways)
