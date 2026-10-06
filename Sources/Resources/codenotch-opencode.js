@@ -155,6 +155,18 @@ async function handleV2Event(event, ctx) {
   const type = event?.type;
   const data = event?.data || {};
 
+  if (type === "permission.replied" || type === "form.replied" || type === "form.cancelled") {
+    const sessionID = data.sessionID || data.form?.sessionID;
+    if (!sessionID) return;
+    const requestID = data.requestID || data.formID || data.id || data.form?.id || "";
+    await askCodenotch({
+      kind: "resolved",
+      sessionID,
+      requestID,
+    });
+    return;
+  }
+
   if (type === "permission.asked") {
     const sessionID = data.sessionID;
     const requestID = data.id;
@@ -167,7 +179,7 @@ async function handleV2Event(event, ctx) {
       cwd: data.cwd || data.directory,
       ...permissionFields(data.action, data.resources, data.metadata, data.message),
     });
-    if (!response?.decision) return;
+    if (!response?.decision || response.decision === "resolved") return;
 
     const decision = ["once", "always", "reject"].includes(response.decision)
       ? response.decision
@@ -296,6 +308,18 @@ async function handleV1Event(event, heyApi, serverBase) {
   const sessionID = properties.sessionID;
   const requestID = properties.id;
 
+  if ((type === "permission.replied" || type === "permission.v2.replied"
+      || type === "question.replied" || type === "question.rejected"
+      || type === "question.v2.replied" || type === "question.v2.rejected")
+      && sessionID) {
+    await askCodenotch({
+      kind: "resolved",
+      sessionID,
+      requestID: properties.requestID || requestID || "",
+    });
+    return;
+  }
+
   if ((type === "permission.asked" || type === "permission.v2.asked")
       && sessionID && requestID) {
     const action = properties.permission || properties.action;
@@ -307,7 +331,7 @@ async function handleV1Event(event, heyApi, serverBase) {
       cwd: properties.cwd || properties.directory,
       ...permissionFields(action, resources, properties.metadata, properties.message),
     });
-    if (!response?.decision) return;
+    if (!response?.decision || response.decision === "resolved") return;
 
     const reply = ["once", "always", "reject"].includes(response.decision)
       ? response.decision
