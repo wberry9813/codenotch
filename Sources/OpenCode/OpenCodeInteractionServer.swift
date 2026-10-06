@@ -139,9 +139,21 @@ final class OpenCodeInteractionServer {
     }
 
     private func process(_ data: Data, client: ClientContext) {
-        guard let wire = try? JSONDecoder().decode(OpenCodeInteractionWireRequest.self, from: data),
-              let interaction = wire.interaction()
-        else {
+        guard let wire = try? JSONDecoder().decode(OpenCodeInteractionWireRequest.self, from: data) else {
+            send(.permissionReject, on: client.connection)
+            return
+        }
+
+        if wire.kind == "resolved" {
+            store.resolveExternally(
+                sessionID: wire.sessionID,
+                requestID: wire.requestID.isEmpty ? nil : wire.requestID
+            )
+            send(.resolvedExternally, on: client.connection)
+            return
+        }
+
+        guard let interaction = wire.interaction() else {
             send(.permissionReject, on: client.connection)
             return
         }
