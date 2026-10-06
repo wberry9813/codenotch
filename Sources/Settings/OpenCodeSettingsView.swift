@@ -85,6 +85,11 @@ struct OpenCodeSettingsView: View {
             do {
                 try OpenCodePluginInstaller.install()
                 pluginStatus = .current
+                // Session activity is rendered on the existing OpenCode ring.
+                // Turning the capability on therefore makes that existing cell
+                // visible if it was off; turning the capability off below does
+                // not hide the ring, because OpenCode Go usage may still need it.
+                preferences.setConnected(true, for: "opencode")
                 preferences.openCodeSessionsEnabled = true
             } catch {
                 preferences.openCodeSessionsEnabled = false
@@ -107,9 +112,6 @@ struct OpenCodeSettingsView: View {
         do {
             try OpenCodePluginInstaller.install()
             refreshStatus()
-            if preferences.openCodeSessionsEnabled {
-                preferences.openCodeSessionsEnabled = true
-            }
         } catch {
             refreshStatus()
             errorText = L10n.t("Could not install the OpenCode plugin: \(error.localizedDescription)")
