@@ -62,7 +62,7 @@ struct OpenCodeSettingsView: View {
                     }
                 }
 
-                Text(L10n.t("Codenotch installs only ~/.config/opencode/plugins/codenotch.js. Other OpenCode plugins, including CodeIsland, are left untouched. Restart a running OpenCode process after installing or updating the plugin."))
+                Text(L10n.t("Codenotch installs only ~/.config/opencode/plugins/codenotch.js. Other plugin files are left untouched. Restart a running OpenCode process after installing or updating the plugin. If another UI plugin also handles OpenCode permissions or questions, disable that interaction integration while using Codenotch to avoid duplicate replies."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
