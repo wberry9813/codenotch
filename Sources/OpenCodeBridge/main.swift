@@ -131,11 +131,12 @@ guard sendAll(fd, data: framed) else {
     exit(1)
 }
 
-// The request is line-framed, so Codenotch can process it immediately. The
-// write half-close matches CodeIsland's proven native helper behaviour and
-// makes the request lifecycle explicit without closing the read half.
-shutdown(fd, SHUT_WR)
-
+// Codenotch deliberately uses newline framing so the write side stays open
+// while NWConnection holds the request for a user decision. Do NOT half-close
+// here: on macOS, shutdown(SHUT_WR) can race NWConnection into reporting the
+// stream complete before its main-queue receive handler processes the frame.
+// CodeIsland's helper half-closes because its protocol is EOF-framed; this one
+// is not.
 guard let response = receiveLine(fd), !response.isEmpty else {
     exit(1)
 }
