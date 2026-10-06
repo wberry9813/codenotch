@@ -266,6 +266,13 @@ final class OpenCodeInteractionTests: XCTestCase {
 }
 
 final class OpenCodePluginInstallerTests: XCTestCase {
+    func testInteractionPluginIsBundledWithTheApp() {
+        XCTAssertNotNil(
+            OpenCodePluginInstaller.bundledPlugin,
+            "codenotch-opencode.js must be copied into the app resources"
+        )
+    }
+
     private var roots: [URL] = []
 
     override func tearDownWithError() throws {
