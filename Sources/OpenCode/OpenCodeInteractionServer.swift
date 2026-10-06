@@ -75,7 +75,7 @@ final class OpenCodeInteractionServer {
     }
 
     func stop() {
-        store.cancelAll()
+        store.releaseAll()
         listener?.cancel()
         listener = nil
         unlink(Self.socketPath)
