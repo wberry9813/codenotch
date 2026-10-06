@@ -18,6 +18,11 @@ enum OpenCodePluginInstaller {
 
     static var bundledPlugin: URL? {
         Bundle.main.url(forResource: "codenotch-opencode", withExtension: "js")
+            ?? Bundle.main.url(
+                forResource: "codenotch-opencode",
+                withExtension: "js",
+                subdirectory: "Resources"
+            )
     }
 
     static func status(
