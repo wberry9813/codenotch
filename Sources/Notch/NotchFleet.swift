@@ -45,6 +45,7 @@ final class NotchFleet {
     /// merged dict after a fan-out, the same way it read `controller.model
     /// .sessions` before there was more than one controller.
     private(set) var sessions: [String: [AgentSession]] = [:]
+    private var openCodeInteractions: [OpenCodeInteraction] = []
     /// Which display a single, unassigned controller should sit on. Only
     /// consulted by `.mainDisplay` — every controller under `.allDisplays`
     /// already has its own `assignedScreen`, which wins over this in
@@ -103,6 +104,8 @@ final class NotchFleet {
         }
     }
     var onFocusSession: ((pid_t) -> Void)?
+    var onOpenCodeInteractionReply: ((String, OpenCodeInteractionReply) -> Void)?
+    var onOpenCodeQuestion: ((OpenCodeInteraction) -> Void)?
     var signInItems: [(title: String, action: () -> Void)] = []
     /// An ⌥-drag on any one panel settled at a new offset. Persisting it is
     /// Preferences' job, same division `apply(edge:)` already keeps.
@@ -371,6 +374,17 @@ final class NotchFleet {
         }
     }
 
+    func setOpenCodeInteractions(_ interactions: [OpenCodeInteraction]) {
+        openCodeInteractions = interactions
+        menuModel.openCodeInteractions = interactions
+        for controller in controllers.values {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
+                controller.model.openCodeInteractions = interactions
+            }
+            controller.relocate()
+        }
+    }
+
     // MARK: - Reconciliation
 
     /// Which notch a screen is, stable across polls while it stays connected.
@@ -479,6 +493,8 @@ final class NotchFleet {
         controller.onOpenSettings = onOpenSettings
         controller.model.onOpenSettings = onOpenSettings
         controller.model.onFocusSession = onFocusSession
+        controller.model.onOpenCodeInteractionReply = onOpenCodeInteractionReply
+        controller.model.onOpenCodeQuestion = onOpenCodeQuestion
         controller.model.onUpdateChoice = { [weak self] in self?.onUpdateChoice?($0) }
         controller.apply(updatePrompt: updatePrompt)
         controller.model.updatePending = updatePending
@@ -495,6 +511,7 @@ final class NotchFleet {
         controller.model.updateLedger(ledger)
         controller.model.refreshing = refreshing
         controller.model.sessions = sessions
+        controller.model.openCodeInteractions = openCodeInteractions
         controller.model.now = Date()
         controller.apply(visibility)
         controller.show()
