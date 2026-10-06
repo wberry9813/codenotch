@@ -62,6 +62,46 @@ final class NotchLayoutTests: XCTestCase {
         )
     }
 
+    @MainActor
+    func testSimpleProviderCanShowASessionWhenWorstCaseGlobalBudgetCannot() {
+        let model = NotchViewModel()
+        model.edge = .right
+
+        let openCode = ProviderSnapshot(
+            id: "opencode",
+            displayName: "OpenCode",
+            glyph: .opencode,
+            fidelity: .official,
+            status: .needsAuth,
+            windows: []
+        )
+        model.snapshots = [
+            ProviderSnapshot(id: "a", displayName: "A", glyph: .claude,
+                             fidelity: .official, status: .ok, windows: []),
+            ProviderSnapshot(id: "b", displayName: "B", glyph: .antigravity,
+                             fidelity: .official, status: .ok, windows: []),
+            ProviderSnapshot(id: "c", displayName: "C", glyph: .deepseek,
+                             fidelity: .official, status: .ok, windows: []),
+            openCode
+        ]
+
+        var foundTightScreen = false
+        for height in stride(from: CGFloat(520), through: 1200, by: 10) {
+            model.screenSize = CGSize(width: 1440, height: height)
+            let global = model.sessionCap(cellCount: model.snapshots.count)
+            let openCodeCap = model.sessionCap(for: openCode, cellCount: model.snapshots.count)
+            if global == 0 && openCodeCap > 0 {
+                foundTightScreen = true
+                break
+            }
+        }
+
+        XCTAssertTrue(
+            foundTightScreen,
+            "a simple OpenCode card should not inherit the worst-case quota-card session cap"
+        )
+    }
+
     func testOpenCodeInteractionReservesExactlyItsActionArea() {
         let bare = NotchLayout.cardHeight(windowCount: 2, sessionCount: 1)
         let interactive = NotchLayout.cardHeight(
