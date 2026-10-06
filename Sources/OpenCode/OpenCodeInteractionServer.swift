@@ -139,7 +139,9 @@ final class OpenCodeInteractionServer {
     }
 
     private func process(_ data: Data, client: ClientContext) {
-        guard let wire = try? JSONDecoder().decode(OpenCodeInteractionWireRequest.self, from: data) else {
+        guard let wire = try? JSONDecoder().decode(OpenCodeInteractionWireRequest.self, from: data),
+              wire.version == 1
+        else {
             send(.permissionReject, on: client.connection)
             return
         }
