@@ -158,13 +158,17 @@ final class OpenCodeInteractionServer {
             return
         }
 
-        client.interactionID = interaction.id
         let accepted = store.receive(interaction) { [weak self, weak connection = client.connection] reply in
             guard let self, let connection else { return }
             self.send(reply, on: connection)
         }
 
-        if !accepted {
+        if accepted {
+            // Only the connection that owns the store entry may cancel it when
+            // that connection dies. A duplicate has the same logical id and
+            // must never tear down the first, valid request as it closes.
+            client.interactionID = interaction.id
+        } else {
             // A duplicate transport must not decide the user's permission.
             // Tell only that duplicate plugin instance to stand down while the
             // first connection remains the sole request the user can answer.
