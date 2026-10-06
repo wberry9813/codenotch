@@ -1341,7 +1341,8 @@ final class NotchViewModel: ObservableObject {
                 localLedgerRows: snapshot.localLedgerRowCount,
                 compactRowCount: snapshot.compactRowCount,
                 showsDeepSeekPricing: deepSeekPricingEnabled,
-                costRows: costRows(for: snapshot))
+                costRows: costRows(for: snapshot),
+                hasOpenCodeInteraction: openCodeInteraction(for: snapshot) != nil)
         }.max() ?? 0
     }
 
