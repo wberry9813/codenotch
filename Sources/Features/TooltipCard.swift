@@ -1082,6 +1082,110 @@ private struct SessionList: View {
     }
 }
 
+private struct OpenCodeInteractionSection: View {
+    let interaction: OpenCodeInteraction
+    let pendingCount: Int
+    var onReply: ((String, OpenCodeInteractionReply) -> Void)?
+    var onQuestion: ((OpenCodeInteraction) -> Void)?
+
+    @Environment(\.tooltipSecondaryInk) private var secondaryInk
+
+    private var title: String {
+        switch interaction.kind {
+        case .permission: return L10n.t("Approval required")
+        case .question:   return L10n.t("Question")
+        }
+    }
+
+    private var summary: String {
+        switch interaction.kind {
+        case .permission(let request):
+            return request.command
+                ?? request.filePath
+                ?? request.description
+                ?? request.patterns.first
+                ?? request.toolName
+        case .question(let request):
+            return request.questions.first?.question ?? L10n.t("OpenCode is waiting for an answer.")
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Rectangle()
+                .fill(Palette.ringTrack)
+                .frame(height: NotchLayout.hairline)
+                .padding(.top, NotchLayout.blockSpacing)
+
+            SplitRow(
+                leading: title,
+                trailing: pendingCount > 1 ? L10n.t("\(pendingCount) waiting") : "",
+                trailingColor: secondaryInk
+            )
+            .padding(.top, NotchLayout.blockSpacing)
+
+            Text(summary)
+                .font(Typography.cardBody)
+                .foregroundStyle(secondaryInk)
+                .lineLimit(2)
+                .truncationMode(.middle)
+                .padding(.top, NotchLayout.sessionRowGap)
+
+            actions
+                .padding(.top, NotchLayout.blockSpacing)
+        }
+    }
+
+    @ViewBuilder
+    private var actions: some View {
+        switch interaction.kind {
+        case .permission:
+            HStack(spacing: Design.px(12)) {
+                action(L10n.t("Deny")) {
+                    onReply?(interaction.id, .permissionReject)
+                }
+                action(L10n.t("Allow once")) {
+                    onReply?(interaction.id, .permissionOnce)
+                }
+                action(L10n.t("Always")) {
+                    onReply?(interaction.id, .permissionAlways)
+                }
+            }
+        case .question:
+            HStack(spacing: Design.px(12)) {
+                action(L10n.t("Skip")) {
+                    onReply?(interaction.id, .questionReject)
+                }
+                action(L10n.t("Answer…")) {
+                    onQuestion?(interaction)
+                }
+            }
+        }
+    }
+
+    private func action(_ title: String, perform: @escaping () -> Void) -> some View {
+        Button(action: perform) {
+            Text(title)
+                .font(Typography.cardBody.weight(.semibold))
+                .foregroundStyle(Palette.textPrimary)
+                .padding(.horizontal, Design.px(18))
+                .frame(height: Design.px(48))
+                .background(Capsule().fill(Palette.textPrimary.opacity(0.13)))
+                .contentShape(Capsule())
+        }
+        .buttonStyle(OpenCodeInteractionButtonStyle())
+    }
+}
+
+private struct OpenCodeInteractionButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.96 : 1)
+            .opacity(configuration.isPressed ? 0.78 : 1)
+            .animation(.easeOut(duration: 0.1), value: configuration.isPressed)
+    }
+}
+
 // MARK: - Entry point
 
 struct TooltipCard: View {
@@ -1102,6 +1206,9 @@ struct TooltipCard: View {
     /// A tap on a session row jumps to that session's terminal — nil leaves
     /// the rows as plain text.
     var onFocusSession: ((pid_t) -> Void)? = nil
+    var openCodeInteractions: [OpenCodeInteraction] = []
+    var onOpenCodeInteractionReply: ((String, OpenCodeInteractionReply) -> Void)? = nil
+    var onOpenCodeQuestion: ((OpenCodeInteraction) -> Void)? = nil
     @AppStorage(Preferences.showUsagePaceKey) private var showUsagePace = false
 
     /// The phase a local model is in, and the queue behind it, for the header.
@@ -1131,7 +1238,8 @@ struct TooltipCard: View {
                 localLedgerRows: snapshot.localLedgerRowCount,
             compactRowCount: snapshot.compactRowCount,
             showsDeepSeekPricing: deepSeekPricingEnabled,
-            costRows: costRows
+            costRows: costRows,
+            hasOpenCodeInteraction: snapshot.providerID == "opencode" && !openCodeInteractions.isEmpty
         )
     }
 
@@ -1161,6 +1269,15 @@ struct TooltipCard: View {
                     if let activity, snapshot.localModel == nil {
                         SessionList(summary: activity, now: now, cap: sessionCap,
                                     onFocus: onFocusSession)
+                    }
+                    if snapshot.providerID == "opencode",
+                       let interaction = openCodeInteractions.first {
+                        OpenCodeInteractionSection(
+                            interaction: interaction,
+                            pendingCount: openCodeInteractions.count,
+                            onReply: onOpenCodeInteractionReply,
+                            onQuestion: onOpenCodeQuestion
+                        )
                     }
                     if costRows > 0, let model = CostModels.model(for: snapshot.id) {
                         CostSection(model: model, rows: costRows)
