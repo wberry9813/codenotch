@@ -1317,41 +1317,100 @@ final class NotchViewModel: ObservableObject {
                                            hasResetCredits: hasResetCredits)
     }
 
+    /// Session rows are budgeted against the card that will actually draw
+    /// them. The older global cap used the worst provider on the screen
+    /// (maximum quota windows + any token/plan/reset sections anywhere), which
+    /// can reduce a simple OpenCode card to zero rows even when that card has
+    /// ample room of its own.
+    func sessionCap(for snapshot: ProviderSnapshot, cellCount: Int? = nil) -> Int {
+        guard snapshot.localModel == nil else { return 0 }
+        guard screenSize != .zero else { return NotchLayout.defaultSessionCap }
+
+        let budget = cardBudget(cellCount: cellCount ?? snapshots.count)
+        var fits = 0
+        for n in 1...NotchLayout.sessionCeiling {
+            let height = tooltipCardHeight(
+                snapshot,
+                sessionCount: n + 1,
+                sessionCap: n
+            )
+            guard height <= budget else { break }
+            fits = n
+        }
+        return fits
+    }
+
+    /// The height of the card exactly as it is drawn right now.
+    func cardHeight(for snapshot: ProviderSnapshot) -> CGFloat {
+        let cap = sessionCap(for: snapshot)
+        let sessionCount = snapshot.localModel == nil
+            ? (activity(for: snapshot)?.sessions.count ?? 0)
+            : 0
+        return tooltipCardHeight(snapshot, sessionCount: sessionCount, sessionCap: cap)
+    }
+
     /// Project rows a card may list: the ones the cost model has, capped at
     /// what the section draws.
     func costRows(for snapshot: ProviderSnapshot) -> Int {
         CostSection.rowCount(for: snapshot)
     }
 
+    private func tooltipCardHeight(
+        _ snapshot: ProviderSnapshot,
+        sessionCount: Int,
+        sessionCap: Int
+    ) -> CGFloat {
+        NotchLayout.cardHeight(
+            windowCount: snapshot.windows.count,
+            groupCount: Set(snapshot.windows.compactMap(\.group)).count,
+            moneyWindowCount: snapshot.windows.filter { $0.money != nil }.count,
+            usageDetailGroupCount: snapshot.usageDetail?.visibleGroups.count ?? 0,
+            sessionCount: snapshot.localModel == nil ? sessionCount : 0,
+            sessionCap: sessionCap,
+            statusMessage: snapshot.statusMessage,
+            blockMessage: snapshot.block?.summary(now: now),
+            hasTokenUsage: snapshot.tokenUsage != nil,
+            hasPlan: snapshot.plan != nil,
+            hasResetCredits: snapshot.hasAvailableResetCredits,
+            localModelName: snapshot.localModel?.name,
+            showsLocalPerformance: snapshot.showsLocalPerformance,
+            localLedgerRows: snapshot.localLedgerRowCount,
+            compactRowCount: snapshot.compactRowCount,
+            showsDeepSeekPricing: deepSeekPricingEnabled,
+            costRows: costRows(for: snapshot),
+            hasOpenCodeInteraction: openCodeInteraction(for: snapshot) != nil
+        )
+    }
+
     private func contentCardHeight(sessionCap: Int) -> CGFloat {
         snapshots.map { snapshot in
-            NotchLayout.cardHeight(windowCount: snapshot.windows.count,
-                groupCount: Set(snapshot.windows.compactMap(\.group)).count,
-                moneyWindowCount: snapshot.windows.filter { $0.money != nil }.count,
-                usageDetailGroupCount: snapshot.usageDetail?.visibleGroups.count ?? 0,
+            tooltipCardHeight(
+                snapshot,
                 sessionCount: snapshot.localModel == nil ? sessionCap + 1 : 0,
-                sessionCap: sessionCap,
-                statusMessage: snapshot.statusMessage,
-                blockMessage: snapshot.block?.summary(now: now),
-                hasTokenUsage: snapshot.tokenUsage != nil,
-                hasPlan: snapshot.plan != nil,
-                hasResetCredits: snapshot.hasAvailableResetCredits,
-                localModelName: snapshot.localModel?.name,
-                showsLocalPerformance: snapshot.showsLocalPerformance,
-                localLedgerRows: snapshot.localLedgerRowCount,
-                compactRowCount: snapshot.compactRowCount,
-                showsDeepSeekPricing: deepSeekPricingEnabled,
-                costRows: costRows(for: snapshot),
-                hasOpenCodeInteraction: openCodeInteraction(for: snapshot) != nil)
+                sessionCap: sessionCap
+            )
         }.max() ?? 0
     }
 
     func maxCardHeight(cellCount: Int) -> CGFloat {
-        let cap = sessionCap(cellCount: cellCount)
-        return snapshots.isEmpty
-            ? NotchLayout.maxCardHeight(sessionCap: cap, hasTokenUsage: hasTokenUsage, hasPlan: hasPlan,
-                                        hasResetCredits: hasResetCredits)
-            : contentCardHeight(sessionCap: cap)
+        guard !snapshots.isEmpty else {
+            let cap = sessionCap(cellCount: cellCount)
+            return NotchLayout.maxCardHeight(
+                sessionCap: cap,
+                hasTokenUsage: hasTokenUsage,
+                hasPlan: hasPlan,
+                hasResetCredits: hasResetCredits
+            )
+        }
+
+        return snapshots.map { snapshot in
+            let cap = sessionCap(for: snapshot, cellCount: cellCount)
+            return tooltipCardHeight(
+                snapshot,
+                sessionCount: snapshot.localModel == nil ? cap + 1 : 0,
+                sessionCap: cap
+            )
+        }.max() ?? 0
     }
 
     /// How tall the tallest card may be before the panel runs off the screen.
