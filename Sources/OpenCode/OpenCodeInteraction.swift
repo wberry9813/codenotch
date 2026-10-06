@@ -53,6 +53,9 @@ enum OpenCodeInteractionReply: Equatable {
     case permissionReject
     case questionAnswers([[String]])
     case questionReject
+    /// The same request was answered in OpenCode itself (TUI/Web UI/etc.).
+    /// This closes Codenotch's held socket without issuing a second reply.
+    case resolvedExternally
 }
 
 @MainActor
@@ -81,6 +84,24 @@ final class OpenCodeInteractionStore: ObservableObject {
     func cancel(_ id: String) {
         responders.removeValue(forKey: id)
         interactions.removeAll { $0.id == id }
+    }
+
+    func resolveExternally(sessionID: String, requestID: String? = nil) {
+        let interaction: OpenCodeInteraction?
+        if let requestID, !requestID.isEmpty {
+            interaction = interactions.first {
+                $0.sessionID == sessionID && $0.requestID == requestID
+            }
+        } else {
+            // OpenCode 1.x and some reply events identify only the session.
+            // A session can present only one blocking user request at a time;
+            // resolve the oldest one rather than draining unrelated future work.
+            interaction = interactions
+                .filter { $0.sessionID == sessionID }
+                .min { $0.createdAt < $1.createdAt }
+        }
+        guard let interaction else { return }
+        resolve(interaction.id, with: .resolvedExternally)
     }
 
     func cancelAll() {
